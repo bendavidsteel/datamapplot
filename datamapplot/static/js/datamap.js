@@ -184,7 +184,7 @@ class DataMap {
     lineSpacing = 0.95,
     textCollisionSizeScale = 3.0,
   }) {
-    const numLabels = labelData.length;
+    const numLabels = labelData.label.length;
     this.labelTextColor = labelTextColor;
     this.textMinPixelSize = textMinPixelSize;
     this.textMaxPixelSize = textMaxPixelSize;
@@ -198,20 +198,57 @@ class DataMap {
 
     waitForFont(this.fontFamily);
 
+    const positions = new Float32Array(numLabels * 2);
+    const colors = new Uint8Array(numLabels * 4);
+    const bgColors = new Uint8Array(numLabels * 4);
+    const texts = new Uint8Array(labelData.label.map(d => Array.from(d).map(char => char.charCodeAt(0))).flat());
+    // The "layout" that tells TextLayer where each string starts
+    const startIndices = new Uint16Array(labelData.label.reduce((acc, d) => {
+      const lastIndex = acc[acc.length - 1];
+      acc.push(lastIndex + d.length);
+      return acc;
+    }, [0]));
+
+    // Populate the arrays
+    for (let i = 0; i < numLabels; i++) {
+      positions[i * 2] = labelData.x[i];
+      positions[i * 2 + 1] = labelData.y[i];
+      colors[i * 4] = labelData.r[i];
+      colors[i * 4 + 1] = labelData.g[i];
+      colors[i * 4 + 2] = labelData.b[i];
+      colors[i * 4 + 3] = labelData.a[i];
+      bgColors[i * 4] = this.textBackgroundColor[0];
+      bgColors[i * 4 + 1] = this.textBackgroundColor[1];
+      bgColors[i * 4 + 2] = this.textBackgroundColor[2];
+      bgColors[i * 4 + 3] = this.textBackgroundColor[3];
+    }
+
+    let labelAttributes = {
+      getPosition: { value: positions, size: 2 },
+      getText: { value: texts },
+      getColor: { value: colors, size: 4 },
+      getSize: { value: labelData.size, size: 1 },
+      getCollisionPriority: { value: labelData.size, size: 1 },
+      background: {
+        getPosition: { value: positions, size: 2 },
+        getFillColor: { value: bgColors, size: 4 },
+      }
+    };
+
     this.labelLayer = new deck.TextLayer({
       id: 'LabelLayer',
-      data: labelData,
+      data: {
+        length: numLabels,
+        startIndices: startIndices,
+        attributes: labelAttributes
+      },
       pickable: false,
-      getPosition: d => [d.x, d.y],
-      getText: d => d.label,
       getColor: this.labelTextColor,
-      getSize: d => d.size,
       sizeScale: 1,
       sizeMinPixels: this.textMinPixelSize,
       sizeMaxPixels: this.textMaxPixelSize,
       outlineWidth: this.textOutlineWidth,
       outlineColor: this.textOutlineColor,
-      getBackgroundColor: this.textBackgroundColor,
       getBackgroundPadding: [15, 15, 15, 15],
       background: true,
       characterSet: "auto",
@@ -225,7 +262,6 @@ class DataMap {
       elevation: 100,
       // CollideExtension options
       collisionEnabled: true,
-      getCollisionPriority: d => d.size,
       collisionTestProps: {
         sizeScale: this.textCollisionSizeScale,
         sizeMaxPixels: this.textMaxPixelSize * 2,

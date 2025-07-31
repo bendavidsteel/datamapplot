@@ -75,7 +75,7 @@ def pull_arms(data, arms, num_pulls_per_arm, estimates, pull_counts):
 
 
 @numba.njit()
-def medoid(data, max_points=5000, max_iter=1000, arm_budget=20):
+def medoid(data, max_points=10000, max_iter=2000, arm_budget=20):
     # subsample data if it is too large so that runtime is reasonable
     if data.shape[0] > max_points:
         idx = np.random.choice(data.shape[0], max_points, replace=False)

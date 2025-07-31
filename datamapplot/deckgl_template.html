@@ -626,18 +626,21 @@
     }
 
     function loadLabelDataLayer() {
-      labelDataWorker.postMessage({encodedData: labelDataEncoded, JSONParse: true});
+      labelDataWorker.postMessage({encodedData: labelDataEncoded, JSONParse: false});
 
       labelDataWorker.onmessage = async function(event) {
         if (event.data.type === "progress") {
           updateProgressBar('label-data-progress', event.data.progress);
         } else {
           const { data } = event.data;
-          {% if inline_data -%}
-          const labelData = data;
-          {% else -%}
-          const labelData = data[0].chunkData;
-          {% endif -%}
+          {% if inline_data %}
+          const labelData = await simpleArrowParser(data);
+          {% else %}
+          const chunkArray = data.map(async ({ chunkIndex, chunkData }) => {
+            return {chunkIndex: chunkIndex, chunkData: await simpleArrowParser(chunkData)};
+          });
+          const labelData = await Promise.all(chunkArray).then(combineTypedTableChunks);
+          {% endif %}
           datamap.addLabels(labelData, {
             labelTextColor: {{label_text_color}},
             textMinPixelSize: {{text_min_pixel_size}},
@@ -664,18 +667,21 @@
     }
 
     function loadMetaData() {
-      metaDataWorker.postMessage({encodedData: hoverDataEncoded, JSONParse: true});
+      metaDataWorker.postMessage({encodedData: hoverDataEncoded, JSONParse: false});
 
       metaDataWorker.onmessage = async function(event) {
         if (event.data.type === "progress") {
           updateProgressBar('meta-data-progress', event.data.progress);
         } else {
           const { data } = event.data;
-          {% if inline_data -%}
-          const hoverData = data;
-          {% else -%}
-          const hoverData = combineTableChunks(data);
-          {% endif -%}
+          {% if inline_data %}
+          const hoverData = await simpleArrowParser(data);
+          {% else %}
+          const chunkArray = data.map(async ({ chunkIndex, chunkData }) => {
+            return {chunkIndex: chunkIndex, chunkData: await simpleArrowParser(chunkData)};
+          });
+          const hoverData = await Promise.all(chunkArray).then(combineTypedTableChunks);
+          {% endif %}
           datamap.addMetaData(hoverData, {
             tooltipFunction: {{get_tooltip}},
             onClickFunction: {{on_click if on_click else "null"}},

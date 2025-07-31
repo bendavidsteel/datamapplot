@@ -912,6 +912,13 @@ def url_to_base64_img(url):
         print(f"Error processing image: {e}")
         return None
 
+def df_to_encoded_data(df):
+    buffer = io.BytesIO()
+    df.to_feather(buffer, compression="uncompressed")
+    buffer.seek(0)
+    arrow_bytes = buffer.read()
+    gzipped_bytes = gzip.compress(arrow_bytes)
+    return base64.b64encode(gzipped_bytes).decode()
 
 @cfg.complete(unconfigurable={"point_dataframe", "label_dataframe"})
 def render_html(
@@ -1328,7 +1335,7 @@ def render_html(
     point_outline_color = [250, 250, 250, 128] if not darkmode else [5, 5, 5, 128]
     text_background_color = [255, 255, 255, 64] if not darkmode else [0, 0, 0, 64]
     if color_label_text:
-        label_text_color = "d => [d.r, d.g, d.b]"
+        label_text_color = "undefined"
     else:
         label_text_color = [0, 0, 0, 255] if not darkmode else [255, 255, 255, 255]
 
@@ -1522,18 +1529,9 @@ def render_html(
         enable_colormap_selector = False
 
     if inline_data:
-        buffer = io.BytesIO()
-        point_data.to_feather(buffer, compression="uncompressed")
-        buffer.seek(0)
-        arrow_bytes = buffer.read()
-        gzipped_bytes = gzip.compress(arrow_bytes)
-        base64_point_data = base64.b64encode(gzipped_bytes).decode()
-        json_bytes = json.dumps(hover_data.to_dict(orient="list")).encode()
-        gzipped_bytes = gzip.compress(json_bytes)
-        base64_hover_data = base64.b64encode(gzipped_bytes).decode()
-        label_data_json = label_dataframe.to_json(orient="records")
-        gzipped_label_data = gzip.compress(bytes(label_data_json, "utf-8"))
-        base64_label_data = base64.b64encode(gzipped_label_data).decode()
+        base64_point_data = df_to_encoded_data(point_data)
+        base64_hover_data = df_to_encoded_data(hover_data)
+        base64_label_data = df_to_encoded_data(label_dataframe)
         if enable_histogram:
             json_bytes = bin_data.to_json(
                 orient="records", date_format="iso", date_unit="s"
